@@ -157,7 +157,7 @@ void *DataUARTHandler::readIncomingData(void)
         ROS_INFO("DataUARTHandler Read Thread: Port is open");
     else
         ROS_ERROR("DataUARTHandler Read Thread: Port could not be opened");
-    
+    // ROS_INFO("DataUARTHandler Read Thread: last8bytes = %02x%02x %02x%02x %02x%02x %02x%02x",  last8Bytes[7], last8Bytes[6], last8Bytes[5], last8Bytes[4], last8Bytes[3], last8Bytes[2], last8Bytes[1], last8Bytes[0]);
     /*Quick magicWord check to synchronize program with data Stream*/
     while(!isMagicWord(last8Bytes))
     {
@@ -319,7 +319,7 @@ void *DataUARTHandler::sortIncomingData( void )
     
     while(ros::ok())
     {
-        
+        // ROS_INFO("sorterState %d", sorterState);
         switch(sorterState)
         {
             
@@ -386,9 +386,9 @@ void *DataUARTHandler::sortIncomingData( void )
                memcpy( &mmwData.header.subFrameNumber, &currentBufp->at(currentDatap), sizeof(mmwData.header.subFrameNumber));
                currentDatap += ( sizeof(mmwData.header.subFrameNumber) );
 	    }
-
+            // ROS_INFO("mmwData.header.totalPacketLen %d, currentBufp->size() %d", mmwData.header.totalPacketLen, currentBufp->size());
             //if packet lengths do not patch, throw it away
-            if(mmwData.header.totalPacketLen == currentBufp->size() )
+            if(mmwData.header.totalPacketLen == currentBufp->size() - 4)
             {
                sorterState = CHECK_TLV_TYPE;
             }
@@ -469,47 +469,80 @@ void *DataUARTHandler::sortIncomingData( void )
                 currentDatap += ( sizeof(mmwData.objOut.z) );
                 
                 //convert from Qformat to float(meters)
-                int data[6];
+                float data[6];
                 data[0] = mmwData.objOut.x;
                 data[1] = mmwData.objOut.y;
                 data[2] = mmwData.objOut.z;
                 data[3] = mmwData.objOut.peakVal;
                 data[4] = mmwData.objOut.rangeIdx;
                 data[5] = mmwData.objOut.dopplerIdx;
-                for(int j = 0; j < 6; j++)
-                {
-                    if(data[j] > 32767)
-                        data[j] -= 65535;
-                }
-                
-                float temp[6];
-                for(int j = 0; j < 3; j++)
-                {
-                    temp[j] = ((float)data[j]) / pow(2,mmwData.xyzQFormat);
-                 }   
-                 
-                // Convert intensity to dB
-                temp[3] = 10 * log10(data[3] + 1);  // intensity
-                
+                int xyzQFormat = pow(2, mmwData.xyzQFormat);
+
                 // Convert rangeIdx to meters
-                temp[4] = data[4] * rangeIdxToMeters;
-                
+                data[4] = data[4] * rangeIdxToMeters;
+
                 // Convert dopplerIdx to meters per second
                 if(data[5] > numDopplerBins/2-1){
                     data[5] -= numDopplerBins;
                 }
-                temp[5] = data[5] * dopplerResolutionToMps;
+                data[5] = data[5] * dopplerResolutionToMps;
+
+                // Convert intensity to dB
+                data[3] = 10 * log10(data[3] + 1);  // intensity
+
+                for(int j = 0; j < 3; j++)
+                {
+                    if(data[j] > 32767)
+                        data[j] -= 65536;
+                    data[j] = (mmwData.objOut.rangeIdx + data[j] * 65536) / xyzQFormat;
+                }
+
+                // ROS_INFO("READ_OBJ_STRUCT: x=%d, y=%d, z=%d, int=%d, rng=%d, dop=%d", 
+                // mmwData.objOut.x, mmwData.objOut.y, mmwData.objOut.z, 
+                // mmwData.objOut.peakVal, mmwData.objOut.rangeIdx, mmwData.objOut.dopplerIdx);
+                // ROS_INFO("mmwData.xyzQFormat = %d", mmwData.xyzQFormat);
+                ROS_INFO("rangeIdxToMeters = %d", rangeIdxToMeters);
+                // ROS_INFO("mmwData.numObjOut = %d", mmwData.numObjOut);
+                // for(int j = 0; j < 3; j++)
+                // {
+                //     if(data[j] > 32767)
+                //         data[j] -= 65536;
+                //     //data[j] = data[j] * 65536;
+                // }
                 
+                // float temp[6];
+                 
+                // // Convert intensity to dB
+                // data[3] = 10 * log10(data[3] + 1);  // intensity
+                
+                // // Convert rangeIdx to meters
+                // data[4] = data[4] * rangeIdxToMeters;
+                
+                // // Convert dopplerIdx to meters per second
+                // if(data[5] > numDopplerBins/2-1){
+                //     data[5] -= numDopplerBins;
+                // }
+                // data[5] = data[5] * dopplerResolutionToMps;
+
+                // for(int j = 0; j < 3; j++)
+                // {
+                //     temp[j] = ((float)(data[j])) / mmwData.xyzQFormat; // / pow(2,mmwData.xyzQFormat);
+                //  }  
+
+                // ROS_INFO("Temp: x=%f, y=%f, z=%f, int=%f, rng=%f, dop=%f", 
+                // data[1], -data[0], data[2], 
+                // data[3], data[4], data[5]);
+     
                 // Map mmWave sensor coordinates to ROS coordinate system
-                RScan->points[i].x = temp[1];   // ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
-                RScan->points[i].y = -temp[0];  // ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
-                RScan->points[i].z = temp[2];   // ROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
-                RScan->points[i].intensity = temp[3];
-                RScan->points[i].range = temp[4];
-                RScan->points[i].doppler = temp[5];
-               
-                //ROS_INFO("x %f y %f z %f intensity %f range %d %f doppler %d %f", RScan->points[i].x, RScan->points[i].y, RScan->points[i].z, RScan->points[i].intensity, mmwData.objOut.rangeIdx, RScan->points[i].range, mmwData.objOut.dopplerIdx, RScan->points[i].doppler);
-               
+                RScan->points[i].x = data[1];   // ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
+                RScan->points[i].y = -data[0];  // ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
+                RScan->points[i].z = data[2];   // ROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
+                RScan->points[i].intensity = data[3];
+                RScan->points[i].range = data[4];
+                RScan->points[i].doppler = data[5];
+                
+                // ROS_INFO("x %f y %f z %f intensity %f range %d %f doppler %d %f", RScan->points[i].x, RScan->points[i].y, RScan->points[i].z, RScan->points[i].intensity, mmwData.objOut.rangeIdx, RScan->points[i].range, mmwData.objOut.dopplerIdx, RScan->points[i].doppler);
+                //i++;
                 // Keep point if elevation and azimuth angles are less than specified max values
                 // (NOTE: The following calculations are done using ROS standard coordinate system axis definitions where X is forward and Y is left)
                 if (((maxElevationAngleRatioSquared == -1) ||
@@ -521,14 +554,14 @@ void *DataUARTHandler::sortIncomingData( void )
 		            (RScan->points[i].x != 0)
                    )
                 {
-                    //ROS_INFO("Kept point");
+                    // ROS_INFO("Kept point");
                     i++;
                 }
 
                 // Otherwise, remove the point
                 else
                 {
-                    //ROS_INFO("Removed point");
+                    // ROS_INFO("Removed point");
                     mmwData.numObjOut--;
                 }
             }
@@ -536,8 +569,10 @@ void *DataUARTHandler::sortIncomingData( void )
             // Resize point cloud since some points may have been removed
             RScan->width = mmwData.numObjOut;
             RScan->points.resize(RScan->width * RScan->height);
-            
-            //ROS_INFO("mmwData.numObjOut after = %d", mmwData.numObjOut);
+            ROS_INFO("RScan: x=%f, y=%f, z=%f, int=%f, rng=%f, dop=%f", 
+                RScan->points[0].x, RScan->points[0].y, RScan->points[0].z, 
+                RScan->points[0].intensity, RScan->points[0].range, RScan->points[0].doppler);
+            // ROS_INFO("mmwData.numObjOut after = %d", mmwData.numObjOut);
             //ROS_INFO("DataUARTHandler Sort Thread: number of obj = %d", mmwData.numObjOut );
             
             DataUARTHandler_pub.publish(RScan);
@@ -550,10 +585,10 @@ void *DataUARTHandler::sortIncomingData( void )
             {
         
               i = 0;
-            
+              ROS_INFO("READ_LOG_MAG_RANGE: tlvLen=%u", tlvLen);
               while (i++ < tlvLen - 1)
               {
-                     //ROS_INFO("DataUARTHandler Sort Thread : Parsing Range Profile i=%d and tlvLen = %u", i, tlvLen);
+                     // ROS_INFO("DataUARTHandler Sort Thread : Parsing Range Profile i=%d and tlvLen = %u", i, tlvLen);
               }
             
               currentDatap += tlvLen;
@@ -621,7 +656,7 @@ void *DataUARTHandler::sortIncomingData( void )
             
               while (i++ < tlvLen - 1)
               {
-                     //ROS_INFO("DataUARTHandler Sort Thread : Parsing Stats Profile i=%d and tlvLen = %u", i, tlvLen);
+                     // ROS_INFO("DataUARTHandler Sort Thread : Parsing Stats Profile i=%d and tlvLen = %u", i, tlvLen);
               }
             
               currentDatap += tlvLen;

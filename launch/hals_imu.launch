@@ -1,0 +1,34 @@
+<!--
+  This file will launch the mmWave sensor node and the IMU node and configure a TI mmWave 1443 sensor using the high accuracy level sensing config
+ -->
+
+<launch>
+
+  <arg name="rviz_enable" default="1"/>
+  <arg name="record_enable" default="1"/>
+  <arg name="ar_config" default="high_accuracy_demo_14xx"/>
+  <arg name="rviz_file" default="$(find ti_mmwave_rospkg)/rviz_cfg/hals_imu.rviz"/>
+
+  <!-- The path to the output .bag file if record_enable is 1 -->
+  <arg name="out_dir" default="$(env HOME)/"/>
+  <arg name="out_file" default="pool_49_2.bag"/>
+
+  <include file="$(find ti_mmwave_rospkg)/launch/hals.launch">
+    <arg name="command_port" value="/dev/ttyACM1"/>
+    <arg name="data_port" value="/dev/ttyACM2"/>
+    <arg name="rviz_enable" value="0"/>
+    <arg name="record_enable" value="0"/>
+    <arg name="ar_config" value="$(arg ar_config)"/>
+  </include>  
+
+  <include file="$(find ti_mmwave_rospkg)/launch/imu.launch">
+    <arg name="port" value="/dev/ttyACM0"/>
+    <arg name="rviz_enable" value="0"/>
+    <arg name="record_enable" value="0"/>
+  </include>
+
+  <node if="$(arg rviz_enable)" pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_file)"/>
+  <node if="$(arg record_enable)" pkg="rosbag" type="record" name="logger" args="record -O $(arg out_dir)$(arg out_file) /mmWaveDataHdl/RScan
+   /imu/data /imu/data_raw /tf /tf_static"/>
+
+</launch>

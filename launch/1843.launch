@@ -1,0 +1,33 @@
+<!--
+  This file will launch the mmWave sensor node and configure a TI mmWave 1843 sensor using the high accuracy level sensing config
+ -->
+
+<launch>
+
+  <arg name="command_port" default="/dev/ttyACM0"/>
+  <arg name="data_port" default="/dev/ttyACM1"/>
+  <arg name="rviz_enable" default="1"/> 
+  <arg name="record_enable" default="1"/>
+  <!-- <arg name="ar_config" default="high_accuracy_demo_14xx"/> -->
+  <arg name="rviz_file" default="$(find ti_mmwave_rospkg)/rviz_cfg/1843_only.rviz"/>
+
+  <!-- The path to the output .bag file if record_enable is 1 -->
+  <arg name="out_dir" default="$(env HOME)/"/>
+  <arg name="out_file" default="1843_test.bag" />
+
+  <include file="$(find ti_mmwave_rospkg)/launch/ti_mmwave_sensor.launch">
+    <arg name="device" value="1843" doc="TI mmWave sensor device type [1443, 1642]"/>
+    <arg name="config" value="water_rng_15" doc="TI mmWave sensor device configuration [3d (not supported by 1642 EVM), 2d]"/>
+    <arg name="max_allowed_elevation_angle_deg" value="90" doc="Maximum allowed elevation angle in degrees for detected object data [0 > value >= 90]}"/>
+    <arg name="max_allowed_azimuth_angle_deg" value="90" doc="Maximum allowed azimuth angle in degrees for detected object data [0 > value >= 90]}"/>
+    <arg name="command_port" value="$(arg command_port)"/>
+    <arg name="data_port" value="$(arg data_port)"/>
+  </include>
+
+  <!-- Static transform from map to base_radar_link for visualization of stand-alone mmWave sensor using Rviz -->
+  <node pkg="tf" type="static_transform_publisher" name="static_tf_map_to_base_radar_link" args="0 0 0 0 0 0 map base_radar_link 10"/>
+
+  <node if="$(arg rviz_enable)" pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_file)"/>
+  <node if="$(arg record_enable)" pkg="rosbag" type="record" name="logger" args="record -O $(arg out_dir)$(arg out_file) /mmWaveDataHdl/RScan"/>
+
+</launch>

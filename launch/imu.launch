@@ -1,0 +1,32 @@
+<!--
+  This file will launch rViz along with the mmWave sensor node and configure a TI mmWave 1443 sensor using a 2D config
+ -->
+
+<launch>
+
+  <arg name="port" default="/dev/ttyACM0"/>
+  <arg name="rviz_enable" default="1"/> 
+  <arg name="record_enable" default="1"/>
+  <arg name="rviz_file" default="$(find ti_mmwave_rospkg)/rviz_cfg/imu_only.rviz"/>
+  <arg name="imu_topic" default="/gx5/imu/data"/>
+  <arg name="imu_link" default="gx5_link"/>
+
+  <!-- The path to the output .bag file if record_enable is 1 -->
+  <arg name="out_dir" default="$(env HOME)/"/>
+  <arg name="out_file" default="imu_madgwick_test.bag"/>
+
+  <remap from="$(arg imu_topic)" to="/imu/data_raw"/>
+
+  <include file="$(find microstrain_mips)/launch/microstrain.launch" >
+    <arg name="port" value="$(arg port)" />
+  </include>
+
+  <include file="$(find imu_filter_madgwick)/launch/imu_filter_madgwick.launch" >
+  </include>
+
+  <node pkg="tf" type="static_transform_publisher" name="static_tf_map_to_gx5_link" args="0 0 0 0 0 0 map $(arg imu_link) 100"/>
+
+  <node if="$(arg rviz_enable)" pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_file)"/>
+  <node if="$(arg record_enable)" pkg="rosbag" type="record" name="logger" args="record -O $(arg out_dir)$(arg out_file) /imu/data /imu/data_raw" />
+
+</launch>
