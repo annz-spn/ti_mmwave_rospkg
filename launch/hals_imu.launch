@@ -11,7 +11,7 @@
 
   <!-- The path to the output .bag file if record_enable is 1 -->
   <arg name="out_dir" default="$(env HOME)/"/>
-  <arg name="out_file" default="pool_49_2.bag"/>
+  <arg name="out_file" default="friday_1.bag"/>
 
   <include file="$(find ti_mmwave_rospkg)/launch/hals.launch">
     <arg name="command_port" value="/dev/ttyACM1"/>

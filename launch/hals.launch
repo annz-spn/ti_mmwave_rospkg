@@ -13,7 +13,7 @@
 
   <!-- The path to the output .bag file if record_enable is 1 -->
   <arg name="out_dir" default="$(env HOME)/"/>
-  <arg name="out_file" default="hals_bath3.bag" />
+  <arg name="out_file" default="test_firady_noimu_3.bag" />
 
   <include file="$(find ti_mmwave_rospkg)/launch/ti_mmwave_sensor.launch">
     <arg name="device" value="1443" doc="TI mmWave sensor device type [1443, 1642]"/>
